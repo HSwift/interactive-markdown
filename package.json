@@ -41,26 +41,26 @@
                         "type": "object",
                         "default": {
                             "python": {
-                                "path": "/bin/python",
+                                "path": "python",
                                 "args": [
                                     "-u",
                                     "%p"
                                 ]
                             },
                             "javascript": {
-                                "path": "/bin/node",
+                                "path": "node",
                                 "args": [
                                     "%p"
                                 ]
                             },
                             "php": {
-                                "path": "/bin/php",
+                                "path": "php",
                                 "args": [
                                     "%p"
                                 ]
                             },
                             "shellscript": {
-                                "path": "/bin/bash",
+                                "path": "bash",
                                 "args": [
                                     "%p"
                                 ]
