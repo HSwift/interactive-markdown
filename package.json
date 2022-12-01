@@ -1,0 +1,110 @@
+{
+    "name": "interactive-markdown",
+    "publisher": "HSwift",
+    "displayName": "Interactive Markdown Notebook",
+    "description": "An Interactive Markdown Notebook for VS Code.",
+    "version": "0.0.1",
+    "preview": true,
+    "engines": {
+        "vscode": "^1.73.0"
+    },
+    "repository": {
+        "url": "https://github.com/HSwift/interactive-markdown"
+    },
+    "categories": [
+        "Other"
+    ],
+    "activationEvents": [
+        "onNotebook:interactive-markdown"
+    ],
+    "main": "./out/extension.js",
+    "browser": "./out/extension-bundle.js",
+    "capabilities": {},
+    "contributes": {
+        "notebooks": [
+            {
+                "type": "interactive-markdown",
+                "displayName": "Interactive Markdown",
+                "priority": "option",
+                "selector": [
+                    {
+                        "filenamePattern": "*.{md,markdown}"
+                    }
+                ]
+            }
+        ],
+        "configuration": [
+            {
+                "title": "Interactive Markdown",
+                "properties": {
+                    "interactive-markdown.executors": {
+                        "type": "object",
+                        "default": {
+                            "python": {
+                                "path": "/bin/python",
+                                "args": [
+                                    "-u",
+                                    "%p"
+                                ]
+                            },
+                            "javascript": {
+                                "path": "/bin/node",
+                                "args": [
+                                    "%p"
+                                ]
+                            },
+                            "php": {
+                                "path": "/bin/php",
+                                "args": [
+                                    "%p"
+                                ]
+                            },
+                            "shellscript": {
+                                "path": "/bin/bash",
+                                "args": [
+                                    "%p"
+                                ]
+                            }
+                        },
+                        "description": "Set language executors.",
+                        "scope": "resource"
+                    },
+                    "interactive-markdown.resultLabel": {
+                        "type": "string",
+                        "default": "result_",
+                        "description": "Set prefix of inserted result name.",
+                        "scope": "resource"
+                    }
+                }
+            }
+        ]
+    },
+    "scripts": {
+        "vscode:prepublish": "yarn run compile && yarn run bundle",
+        "compile": "tsc -p ./",
+        "lint": "eslint src --ext ts",
+        "deploy": "npx vsce publish --noVerify",
+        "watch": "tsc -watch -p ./",
+        "pretest": "yarn run compile && yarn run lint",
+        "test": "node ./out/test/runTest.js",
+        "bundle": "npx esbuild src/extension.ts --bundle --outfile=out/extension-bundle.js --platform=node --external:vscode"
+    },
+    "devDependencies": {
+        "@types/glob": "^8.0.0",
+        "@types/mocha": "^10.0.0",
+        "@types/node": "16.x",
+        "@types/vscode": "^1.73.0",
+        "@typescript-eslint/eslint-plugin": "^5.42.0",
+        "@typescript-eslint/parser": "^5.42.0",
+        "@vscode/test-electron": "^2.2.0",
+        "eslint": "^8.26.0",
+        "glob": "^8.0.3",
+        "mocha": "^10.1.0",
+        "typescript": "^4.8.4",
+        "vsce": "^2.14.0",
+        "vscode-test": "^1.6.1"
+    },
+    "dependencies": {
+        "tree-kill": "^1.2.2"
+    }
+}
