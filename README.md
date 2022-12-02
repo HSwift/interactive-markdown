@@ -13,7 +13,7 @@
 
 ## 使用
 
-- 下载扩展的vsix并安装（早期阶段未上架商店）
+- 下载扩展的[vsix](https://github.com/HSwift/interactive-markdown/actions)并安装（早期阶段未上架商店）
 - 打开一个markdown，右键文件名打开菜单，选择`重新打开编辑器的方式`
 - 选择使用`Interactive Markdown`打开
 
