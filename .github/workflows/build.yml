@@ -14,5 +14,12 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: 16
-      - run: yarn install
-      - run: yarn vsce package
+      - name: Install dependencies
+        run: yarn install
+      - name: Build
+        run: yarn vsce package
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: interactive-markdown.vsix
+          path: *.vsix
