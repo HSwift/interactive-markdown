@@ -9,6 +9,7 @@
 - 提供了四种脚本语言的执行：Python, Javascript(Node), PHP, Shell
 - 可从Markdown文件中保存或读取执行结果
 - 代码块的执行结果可共享
+- 支持JSON格式的自动反序列化
 
 ## 使用
 
@@ -29,7 +30,7 @@ contextValue.forEach((v, k) => {
 });
 ```
 
-常量名前缀由`interactive-markdown.resultLabel`设置，序号为代码块的编号。
+常量名前缀由`interactive-markdown.resultLabel`设置，序号为代码块的编号。如果输出包含json和text两种格式，则优先保存json。如果多次输出json，则优先保存第一个。
 
 ## 配置
 
