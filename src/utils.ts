@@ -15,20 +15,28 @@ export function getExecutorsConfig(): Record<string, ExecutorConfiguration> {
     return getConfig().get('executors')!;
 }
 
+export function windowsPathConverter(path: string){
+    if(process.platform === 'win32'){
+        return path.replace(/^\/*([A-Za-z]:)/g,'$1');
+    }
+    return path;
+}
+
 export function getWorkFolder(document: vscode.NotebookDocument): string {
     if (vscode.workspace.workspaceFolders) {
         if (document) {
             const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
             if (workspaceFolder) {
-                return workspaceFolder.uri.fsPath;
+                return windowsPathConverter(workspaceFolder.uri.fsPath);
             }
         }
-        return vscode.workspace.workspaceFolders[0].uri.fsPath;
+        return windowsPathConverter(vscode.workspace.workspaceFolders[0].uri.fsPath);
     } else {
         if (document.uri.scheme === 'file') {
-            return dirname(document.uri.path);
+            return windowsPathConverter(dirname(document.uri.path));
         } else {
-            return '/';
+            // use user's home dir as fallback
+            return process.env.HOME || process.env.USERPROFILE || '/';
         }
     }
 }

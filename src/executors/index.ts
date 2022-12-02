@@ -103,14 +103,14 @@ export class CodeExecutor {
 
     runAndWait(process: child_process.ChildProcessWithoutNullStreams) {
         return new Promise<void>((resolve, reject) => {
-            const endRunner = (success: boolean) => {
+            const endRunner = (success: boolean, error: Error | undefined = undefined) => {
                 this._isRunning = false;
                 try {
                     fs.unlink(this._filename);
                 } catch (error) {
                     console.error(`code executor temp file ${this._filename} not exists`);
                 }
-                success ? resolve() : reject();
+                success ? resolve() : reject(error);
             };
 
             const onStdout = (data: Buffer) => {
@@ -144,9 +144,9 @@ export class CodeExecutor {
                     endRunner(ret === 0);
                 }
             });
-            process.on('error', () => {
+            process.on('error', (e) => {
                 if (this._isRunning) {
-                    endRunner(false);
+                    endRunner(false, e);
                 }
             });
             process.stdout.on('data', onStdout);

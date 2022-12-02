@@ -6,13 +6,13 @@ import { getConfig, getExecutorsConfig } from '../utils';
 
 function generateContextCode(contextValue: Map<number, vscode.NotebookCellOutputItem>): string {
     const resultLabel = getConfig().get<string>('resultLabel');
-    let code = '';
+    let code = '# coding:utf-8\n';
     contextValue.forEach((v, k) => {
         const label = resultLabel + String(k);
         if (v.mime === 'text/plain') {
             const t = Buffer.from(v.data).toString('base64');
             code += `${label} = __import__("base64").b64decode("${t}")\n`;
-        }else if(v.mime === 'text/x-json'){
+        } else if (v.mime === 'text/x-json') {
             const t = Buffer.from(v.data).toString('base64');
             code += `${label} = __import__("json").loads(__import__("base64").b64decode("${t}"))\n`;
         }
@@ -29,5 +29,6 @@ export default async function runPython(filename: string, options: RunnerOptions
     await fs.writeFile(filename, head + options.code);
     const path = executors.python.path;
     const args = executors.python.args.map((x) => (x === '%p' ? filename : x));
-    return spawn(path, args, options.spawnOption);
+    const pythonOption = { env: { PYTHONIOENCODING: 'utf8' } };
+    return spawn(path, args, Object.assign(pythonOption, options.spawnOption));
 }
