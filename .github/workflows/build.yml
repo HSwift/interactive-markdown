@@ -22,4 +22,4 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: interactive-markdown.vsix
-          path: *.vsix
+          path: '*.vsix'
