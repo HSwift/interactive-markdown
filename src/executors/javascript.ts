@@ -1,16 +1,20 @@
 import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
 import * as fs from 'fs/promises';
+import * as vscode from 'vscode';
 import { RunnerOptions } from '.';
 import { getConfig, getExecutorsConfig } from '../utils';
 
-function generateContextCode(contextValue: Map<number, string | object>): string {
+function generateContextCode(contextValue: Map<number, vscode.NotebookCellOutputItem>): string {
     const resultLabel = getConfig().get<string>('resultLabel');
     let code = '';
     contextValue.forEach((v, k) => {
         const label = resultLabel + String(k);
-        if (typeof v === 'string') {
-            const t = Buffer.from(v).toString('base64');
+        if (v.mime === 'text/plain') {
+            const t = Buffer.from(v.data).toString('base64');
             code += `const ${label} = Buffer.from('${t}', 'base64').toString();\n`;
+        }else if(v.mime === 'text/x-json'){
+            const t = Buffer.from(v.data).toString('base64');
+            code += `const ${label} = JSON.parse(atob('${t}'));\n`;
         }
     });
     return code;

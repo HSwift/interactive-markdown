@@ -22,16 +22,18 @@ export class NotebookKernel {
         this._controller.dispose();
     }
 
-    private extractResultsFromCells(cells: vscode.NotebookCell[]): Map<number, string | object> {
-        const results: Map<number, string | object> = new Map();
+    private extractResultsFromCells(cells: vscode.NotebookCell[]): Map<number, vscode.NotebookCellOutputItem> {
+        const results: Map<number, vscode.NotebookCellOutputItem> = new Map();
         for (const cell of cells) {
             if (cell.kind === vscode.NotebookCellKind.Code && cell.outputs.length > 0) {
-                if (cell.outputs[0].items.length > 0 && cell.outputs[0].items[0].mime === 'text/plain') {
-                    const outputs: string[] = [];
-                    cell.outputs[0].items.forEach((v) => {
-                        outputs.push(v.data.toString().trim());
-                    });
-                    results.set(cell.index, outputs.join(''));
+                const items = cell.outputs[0].items;
+                const mimePriority = ['text/x-json', 'text/plain'];
+                for (const mime of mimePriority) {
+                    const item = items.filter((x) => x.mime === mime);
+                    if (item.length > 0) {
+                        results.set(cell.index, item[0]);
+                        break;
+                    }
                 }
             }
         }

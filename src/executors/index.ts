@@ -16,7 +16,7 @@ export class RunnerOptions {
     public lang = '';
     public code = '';
     public cwd = '';
-    public contextValue: Map<number, string | object> = new Map();
+    public contextValue: Map<number, vscode.NotebookCellOutputItem> = new Map();
     public spawnOption?: child_process.SpawnOptionsWithoutStdio;
 }
 
@@ -64,6 +64,43 @@ export class CodeExecutor {
         }
     }
 
+    outputAsJSON(data: Buffer): boolean {
+        const json = data.toString().trim();
+        try {
+            if (json[0] === '{' && json[json.length - 1] === '}') {
+                JSON.parse(json);
+                const item = new vscode.NotebookCellOutputItem(data, 'text/x-json');
+                const existedItems = this._stdout!.items.filter((x) => x.mime === 'text/x-json');
+                if (existedItems.length === 0) {
+                    this._stdout!.items.push(item);
+                    this._cellExecutions.replaceOutputItems(this._stdout!.items, this._stdout!);
+                } else {
+                    vscode.window.showWarningMessage('JSON was printed multiple times, only the first output can be accepted.');
+                }
+                return true;
+            }
+        } catch (e) {
+            /* empty */
+        }
+        return false;
+    }
+
+    outputAsText(data: Buffer) {
+        const item = new vscode.NotebookCellOutputItem(data, 'text/plain');
+        const existedItems = this._stdout!.items.filter((x) => x.mime === 'text/plain');
+        if (existedItems.length === 0) {
+            this._stdout!.items.push(item);
+            this._cellExecutions.replaceOutputItems(this._stdout!.items, this._stdout!);
+        } else {
+            for (const key in this._stdout!.items) {
+                if (this._stdout!.items[key].mime === 'text/plain') {
+                    this._stdout!.items[key].data = Buffer.concat([this._stdout!.items[key].data, data]);
+                    this._cellExecutions.replaceOutputItems(this._stdout!.items, this._stdout!);
+                }
+            }
+        }
+    }
+
     runAndWait(process: child_process.ChildProcessWithoutNullStreams) {
         return new Promise<void>((resolve, reject) => {
             const endRunner = (success: boolean) => {
@@ -77,16 +114,18 @@ export class CodeExecutor {
             };
 
             const onStdout = (data: Buffer) => {
+                if (this._stdout === undefined) {
+                    this._stdout = new vscode.NotebookCellOutput([]);
+                    this._cellExecutions.replaceOutput(this._stdout);
+                }
                 // wired: appendOutputItems not flush its internal items,
                 // so we manage the buffer by ourself.
-                if (this._stdout === undefined) {
-                    const items = [new vscode.NotebookCellOutputItem(data, 'text/plain')];
-                    this._stdout = new vscode.NotebookCellOutput(items);
-                    this._cellExecutions.replaceOutput(this._stdout);
-                } else {
-                    this._stdout.items[0].data = Buffer.concat([this._stdout.items[0].data, data]);
-                    this._cellExecutions.replaceOutputItems(this._stdout.items[0], this._stdout);
+                if (data[0] === '{'.charCodeAt(0)) {
+                    if (this.outputAsJSON(data)) {
+                        return;
+                    }
                 }
+                this.outputAsText(data);
             };
 
             const onError = (data: Buffer | string) => {
