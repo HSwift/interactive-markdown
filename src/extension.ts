@@ -49,7 +49,7 @@ class MarkdownProvider implements vscode.NotebookSerializer {
 
         const cellRawData = parseMarkdown(content);
         // ignore the last empty block
-        if (cellRawData[cellRawData.length - 1].content === '') {
+        if (cellRawData.length > 1 && cellRawData[cellRawData.length - 1].content === '') {
             cellRawData.pop();
         }
         const cells = cellRawData.map(rawToNotebookCellData);
