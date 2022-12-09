@@ -3,32 +3,21 @@ import { randomBytes } from 'crypto';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs/promises';
-import * as child_process from 'child_process';
 import * as vscode from 'vscode';
-import treeKill = require('tree-kill');
-
-import runPython from './python';
-import runShell from './shell';
-import runJavascript from './javascript';
-import runPhp from './php';
+import { languages, LanguageSupport } from './languageSupport';
+import { getExecutorsConfig } from '../utils';
+import { DockerExecutorProxy, ExecutorProxy, LocalExecutorProxy, SSHExecutorProxy } from './executorProxy';
+import { macroProcess, Config as MacroConfig } from './macro';
 
 export class RunnerOptions {
+    public command = '';
     public lang = '';
     public code = '';
     public cwd = '';
+    public shell = true;
+    public env?: NodeJS.ProcessEnv | undefined;
     public contextValue: Map<number, vscode.NotebookCellOutputItem> = new Map();
-    public spawnOption?: child_process.SpawnOptionsWithoutStdio;
 }
-
-type Executor = {
-    (filename: string, options: RunnerOptions): Promise<child_process.ChildProcessWithoutNullStreams>;
-};
-
-const executors = new Map<string, Executor>();
-executors.set('python', runPython);
-executors.set('shellscript', runShell);
-executors.set('javascript', runJavascript);
-executors.set('php', runPhp);
 
 async function genFilename() {
     for (let i = 0; i < 25; i++) {
@@ -47,20 +36,38 @@ async function genFilename() {
 }
 
 export class CodeExecutor {
-    private _process?: child_process.ChildProcessWithoutNullStreams;
-    private _filename = '';
-    private _isRunning = false;
     private _stdout?: vscode.NotebookCellOutput;
     private _stderr?: vscode.NotebookCellOutput;
+    private _languageSupport: LanguageSupport;
+    private _macroProvidedConfig: MacroConfig;
+    private _filename?: string;
     private readonly _cellExecutions: vscode.NotebookCellExecution;
     public readonly options: RunnerOptions;
 
     constructor(options: RunnerOptions, cellExecutions: vscode.NotebookCellExecution) {
         this.options = options;
-        this.options.spawnOption = { cwd: options.cwd, shell: true };
         this._cellExecutions = cellExecutions;
-        if (!executors.has(this.options.lang)) {
+        if (!languages.has(this.options.lang)) {
             throw new Error(`unsupported language '${this.options.lang}'`);
+        }
+        const executors = getExecutorsConfig();
+        if (Object.prototype.hasOwnProperty.call(executors, this.options.lang) === false) {
+            throw new Error(`${this.options.lang} executor has been disabled`);
+        }
+        this._languageSupport = languages.get(this.options.lang)!;
+        this.options.command = executors[this.options.lang].command;
+        this.options = Object.assign(this.options, this._languageSupport.generateSpawnOptions());
+        this._macroProvidedConfig = macroProcess(this.options.code);
+        this.mergeOptions();
+    }
+
+    mergeOptions() {
+        this.options.code = this.options.code.substring(this._macroProvidedConfig.macroLength);
+        if (this._macroProvidedConfig.command) {
+            this.options.command = this._macroProvidedConfig.command;
+        }
+        if (!this.options.command.includes('%p')) {
+            this.options.command += ' %p';
         }
     }
 
@@ -101,72 +108,69 @@ export class CodeExecutor {
         }
     }
 
-    runAndWait(process: child_process.ChildProcessWithoutNullStreams) {
-        return new Promise<void>((resolve, reject) => {
-            const endRunner = (success: boolean, error: Error | undefined = undefined) => {
-                this._isRunning = false;
-                try {
-                    fs.unlink(this._filename);
-                } catch (error) {
-                    console.error(`code executor temp file ${this._filename} not exists`);
-                }
-                success ? resolve() : reject(error);
-            };
-
-            const onStdout = (data: Buffer) => {
-                if (this._stdout === undefined) {
-                    this._stdout = new vscode.NotebookCellOutput([]);
-                    this._cellExecutions.replaceOutput(this._stdout);
-                }
-                // wired: appendOutputItems not flush its internal items,
-                // so we manage the buffer by ourself.
-                if (data[0] === '{'.charCodeAt(0)) {
-                    if (this.outputAsJSON(data)) {
-                        return;
-                    }
-                }
-                this.outputAsText(data);
-            };
-
-            const onError = (data: Buffer | string) => {
-                const item = vscode.NotebookCellOutputItem.stderr(data.toString());
-                if (this._stderr === undefined) {
-                    this._stderr = new vscode.NotebookCellOutput([item]);
-                    this._cellExecutions.appendOutput(this._stderr);
-                } else {
-                    this._cellExecutions.appendOutputItems(item, this._stderr);
-                }
-            };
-
-            process.on('close', (ret: number) => {
-                if (this._isRunning) {
-                    ret !== 0 && onError(`return with ${ret}`);
-                    endRunner(ret === 0);
-                }
-            });
-            process.on('error', (e) => {
-                if (this._isRunning) {
-                    endRunner(false, e);
-                }
-            });
-            process.stdout.on('data', onStdout);
-            process.stderr.on('data', onError);
-        });
+    chooseExecutorProxy(): ExecutorProxy {
+        const filename = this._filename!;
+        if (this._macroProvidedConfig.runat) {
+            const runat = this._macroProvidedConfig.runat;
+            switch (runat.type) {
+                case 'ssh':
+                    return new SSHExecutorProxy(filename, runat.sshConfig);
+                case 'docker':
+                    return new DockerExecutorProxy(filename, runat.dockerConfig);
+                default:
+                    return new LocalExecutorProxy(filename);
+            }
+        } else {
+            return new LocalExecutorProxy(filename);
+        }
     }
 
     async run() {
-        const onCellExecutionCancel = () => {
-            if (this._process !== undefined && !this._process.killed) {
-                treeKill(this._process.pid!);
+        const onStdout = (data: Buffer) => {
+            if (this._stdout === undefined) {
+                this._stdout = new vscode.NotebookCellOutput([]);
+                this._cellExecutions.replaceOutput(this._stdout);
+            }
+            // wired: appendOutputItems not flush its internal items,
+            // so we manage the buffer by ourself.
+            if (data[0] === '{'.charCodeAt(0)) {
+                if (this.outputAsJSON(data)) {
+                    return;
+                }
+            }
+            this.outputAsText(data);
+        };
+
+        const onError = (data: Buffer | string) => {
+            const item = vscode.NotebookCellOutputItem.stderr(data.toString());
+            if (this._stderr === undefined) {
+                this._stderr = new vscode.NotebookCellOutput([item]);
+                this._cellExecutions.appendOutput(this._stderr);
+            } else {
+                this._cellExecutions.appendOutputItems(item, this._stderr);
             }
         };
 
-        await this._cellExecutions.clearOutput();
-        this._cellExecutions.token.onCancellationRequested(onCellExecutionCancel);
         this._filename = await genFilename();
-        const executor = executors.get(this.options.lang)!;
-        this._isRunning = true;
-        this._process = await executor(this._filename, this.options);
-        await this.runAndWait(this._process);
+        this.options.command = this.options.command.replace('%p', this._filename);
+        const spawnOptions = {
+            cwd: this.options.cwd,
+            env: this.options.env,
+            shell: true,
+            onStdout: onStdout,
+            onStderr: onError
+        };
+        const executor = this.chooseExecutorProxy();
+        const code = this._languageSupport.generateContextCode(this.options.contextValue) + this.options.code;
+        this._cellExecutions.token.onCancellationRequested(executor.killProcess.bind(executor));
+
+        await this._cellExecutions.clearOutput();
+        await executor.writeFile(code);
+        try {
+            const ret = await executor.spawnProcess(this.options.command, [], spawnOptions);
+            ret !== 0 && onError(`return with ${ret}`);
+        } finally {
+            await executor.cleanup();
+        }
     }
 }

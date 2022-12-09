@@ -10,6 +10,7 @@
 - 可从Markdown文件中保存或读取执行结果
 - 代码块的执行结果可共享
 - 支持JSON格式的自动反序列化
+- 支持在Docker或SSH远程连接中执行脚本
 
 ## 使用
 
@@ -17,15 +18,41 @@
 - 打开一个markdown，右键文件名打开菜单，选择`重新打开编辑器的方式`
 - 选择使用`Interactive Markdown`打开
 
+## 宏
+
+在脚本的开头插入宏可以影响interactive-markdown的执行环境，格式为`#[macro args...]`或`//[macro args...]`，宏只能插入在文件开头，在文件中间的宏不起作用。
+
+现在支持的宏：
+
+- runat 指定运行的环境，支持ssh、docker和local。
+ssh指令可以使用`$HOME/.ssh/config`内定义的host，或者使用url的形式创建连接，在远程环境中执行代码。如果没有指定密码或`$HOME/.ssh/id_rsa`私钥认证失败，则会弹出密码输入框要求再次输入密码。
+docker指令可以指定容器的名称或者id，如果容器存在且正在运行，那么会在容器环境内执行代码。同时还可以指定执行时的用户。
+local指令为默认的本地执行环境，可以省略。
+```
+#[runat ssh server]
+#[runat ssh username:password@host:port]
+#[runat docker container-id username]
+#[runat docker container-name]
+#[runat local]
+```
+
+- command 覆盖配置的执行器路径和参数，%p可以省略，如果省略则会把脚本文件拼接到末尾。
+```
+#[command /bin/python]
+```
+
 ## 原理
 
 共享的代码执行结果会以常量定义（如果语言支持的话）的形式插入到生成的代码文件开头，并做一次base64解码，例如javascript的实现：
 ```js
 contextValue.forEach((v, k) => {
     const label = resultLabel + String(k);
-    if (typeof v === 'string') {
-        const t = Buffer.from(v).toString('base64');
+    if (v.mime === 'text/plain') {
+        const t = Buffer.from(v.data).toString('base64');
         code += `const ${label} = Buffer.from('${t}', 'base64').toString();\n`;
+    } else if (v.mime === 'text/x-json') {
+        const t = Buffer.from(v.data).toString('base64');
+        code += `const ${label} = JSON.parse(atob('${t}'));\n`;
     }
 });
 ```
@@ -35,10 +62,13 @@ contextValue.forEach((v, k) => {
 ## 配置
 
 - interactive-markdown.executors
-配置脚本语言的执行器路径和参数，`%p`代表生成的代码路径
+配置脚本语言的执行器路径和参数，`%p`代表生成的代码路径。
 
 - interactive-markdown.resultLabel
-共享执行结果的变量名前缀
+共享执行结果的变量名前缀。
+
+- interactive-markdown.sshPath
+ssh配置目录，用于读取`ssh/config`和`ssh/id_rsa`，如果留空则使用默认的`$HOME/.ssh/`。
 
 ## 感谢
 

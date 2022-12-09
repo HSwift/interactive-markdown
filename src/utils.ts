@@ -1,9 +1,9 @@
+/* eslint-disable quotes */
 import { dirname } from 'path';
 import * as vscode from 'vscode';
 
 export interface ExecutorConfiguration {
-    path: string;
-    args: string[];
+    command: string;
 }
 
 export function getConfig(): vscode.WorkspaceConfiguration {
@@ -15,9 +15,9 @@ export function getExecutorsConfig(): Record<string, ExecutorConfiguration> {
     return getConfig().get('executors')!;
 }
 
-export function windowsPathConverter(path: string){
-    if(process.platform === 'win32'){
-        return path.replace(/^\/*([A-Za-z]:)/g,'$1');
+export function windowsPathConverter(path: string) {
+    if (process.platform === 'win32') {
+        return path.replace(/^\/*([A-Za-z]:)/g, '$1');
     }
     return path;
 }
@@ -39,4 +39,10 @@ export function getWorkFolder(document: vscode.NotebookDocument): string {
             return process.env.HOME || process.env.USERPROFILE || '/';
         }
     }
+}
+
+export function shellStringEscape(value: string) {
+    value = "'" + value.replace(/\\/g, '\\\\').replace(/'/g, "'\\''") + "'";
+    value = value.replace(/^(?:'')+/g, '').replace(/\\'''/g, "\\'");
+    return value;
 }
