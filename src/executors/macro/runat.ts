@@ -129,14 +129,14 @@ export const Runat: Directive = class {
         if (res === '') {
             throw new Error('register at least one WSL distribution');
         }
-        const distributions = res.split('\n');
+        const distributions = res.split(/[\r\n]+/);
         if (distributions.length === 1 && input === undefined) {
             return { distribution: distributions[0] };
         }
         if (input) {
             for (const i of distributions) {
-                if (i === input.trim()) {
-                    return { distribution: i };
+                if (i.trim() === input.trim()) {
+                    return { distribution: i.trim() };
                 }
             }
             throw new Error(`WSL distribution ${input} not found`);
