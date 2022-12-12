@@ -7,22 +7,23 @@ print(123)
 123
 ```
 ```js
-console.log(result_1+456);
+console.log(result_1.trim()+456);
 ```
 ```result_2: text/plain
 123456
 ```
 ```php
+#[command /bin/php7]
 <?php
-echo base64_encode(result_2);
-
+echo phpversion();
 ```
 ```result_3: text/plain
-MTIzNDU2
+7.4.33
 ```
 ```bash
-echo $result_3 | base64 -d
+#[runat docker 82afd8404229]
+hostname
 ```
 ```result_4: text/plain
-123456
+82afd8404229
 ```

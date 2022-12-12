@@ -21,9 +21,14 @@ export interface DockerOptions {
     user?: string;
 }
 
-async function genFilename() {
+export interface WSLOptions {
+    distribution: string;
+}
+
+async function genFilename(dir?:string) {
+    const tmpdir = dir ?? os.tmpdir();
     for (let i = 0; i < 25; i++) {
-        const t = path.join(os.tmpdir(), 'code-runner-' + randomBytes(6).toString('hex'));
+        const t = path.join(tmpdir, 'code-runner-' + randomBytes(6).toString('hex'));
         try {
             await fs.access(t);
         } catch (e: any) {
@@ -225,5 +230,50 @@ export class DockerExecutorProxy extends ExecutorProxy {
                 }
             });
         });
+    }
+}
+
+export class WSLExecutorProxy extends ExecutorProxy {
+    private _localTempFile: string;
+    private _process?: ChildProcess.ChildProcessWithoutNullStreams;
+    private _distro: string;
+    constructor(wslOptions: WSLOptions) {
+        super();
+        this._localTempFile = '';
+        this._distro = wslOptions.distribution;
+    }
+    async writeFile(data: string): Promise<void> {
+         // assuming that all WSL distro use /tmp as a temporary directory
+        this._localTempFile = await genFilename(`//wsl$/${this._distro}/tmp/`);
+        this._tempFilepath = '/tmp/' + path.basename(this._localTempFile);
+        await fs.writeFile(this._localTempFile, data);
+    }
+    spawnProcess(command: string, args: string[], options: SpawnOptions): Promise<number> {
+        // TODO: support environment variables ?
+        // TODO: prevent command injection ?
+        const wslCommand = `wsl -d ${this._distro} exec ${this.formatCommand(command)}`;
+        return new Promise((resolve, reject) => {
+            this._process = ChildProcess.spawn(wslCommand, [], { shell: true });
+            this._process.stdout.on('data', (data) => options.onStdout(data));
+            this._process.stderr.on('data', (data) => options.onStderr(data));
+            this._process.on('close', function (code) {
+                resolve(code ?? 0);
+            });
+            this._process.on('error', function (err) {
+                reject(err);
+            });
+        });
+    }
+    killProcess(): Promise<void> {
+        return new Promise((resolve, reject) => {
+            if (this._process && !this._process.killed && this._process.pid) {
+                treeKill(this._process.pid, function (err) {
+                    err === undefined ? resolve() : reject(err);
+                });
+            }
+        });
+    }
+    async cleanup(): Promise<void> {
+        await fs.unlink(this._localTempFile);
     }
 }

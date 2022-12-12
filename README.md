@@ -24,16 +24,18 @@
 
 现在支持的宏：
 
-- runat 指定运行的环境，支持ssh、docker和local。
+- runat 指定运行的环境，支持ssh、docker、WSL和local。
 ssh指令可以使用`$HOME/.ssh/config`内定义的host，或者使用url的形式创建连接，在远程环境中执行代码。如果没有指定密码或`$HOME/.ssh/id_rsa`私钥认证失败，则会弹出密码输入框要求再次输入密码。
 docker指令可以指定容器的名称或者id，如果容器存在且正在运行，那么会在容器环境内执行代码。同时还可以指定执行时的用户。
 local指令为默认的本地执行环境，可以省略。
+wsl指令可以指定发行版，如果该发行版存在，那么代码会在对应的WSL环境内运行。如果WSL只有一个发行版，那么可以省略发行版参数。
 ```
 #[runat ssh server]
 #[runat ssh username:password@host:port]
 #[runat docker container-id username]
 #[runat docker container-name]
 #[runat local]
+#[runat wsl]
 ```
 
 - command 覆盖配置的执行器路径和参数，%p可以省略，如果省略则会把脚本文件拼接到末尾。

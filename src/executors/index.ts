@@ -2,7 +2,7 @@
 import * as vscode from 'vscode';
 import { languages, LanguageSupport } from './languageSupport';
 import { getExecutorsConfig } from '../utils';
-import { DockerExecutorProxy, ExecutorProxy, LocalExecutorProxy, SSHExecutorProxy } from './executorProxy';
+import { DockerExecutorProxy, ExecutorProxy, LocalExecutorProxy, SSHExecutorProxy, WSLExecutorProxy } from './executorProxy';
 import { macroProcess, Config as MacroConfig } from './macro';
 
 export class RunnerOptions {
@@ -95,6 +95,8 @@ export class CodeExecutor {
                     return new SSHExecutorProxy(runat.sshConfig);
                 case 'docker':
                     return new DockerExecutorProxy(runat.dockerConfig);
+                case 'wsl':
+                    return new WSLExecutorProxy(runat.wslConfig);
                 default:
                     return new LocalExecutorProxy();
             }

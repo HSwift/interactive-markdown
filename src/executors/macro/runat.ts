@@ -18,6 +18,10 @@ interface DockerConfig {
     user?: string;
 }
 
+interface WSLConfig {
+    distribution: string;
+}
+
 interface RunatSSHConfig {
     type: 'ssh';
     sshConfig: SSHExportConfig;
@@ -28,15 +32,22 @@ interface RunatDockerConfig {
     dockerConfig: DockerConfig;
 }
 
+interface RunatWSLConfig {
+    type: 'wsl';
+    wslConfig: WSLConfig;
+}
+
 interface RunatLocalConfig {
     type: 'local';
 }
 
-export type RunatConfig = RunatSSHConfig | RunatDockerConfig | RunatLocalConfig;
+export type RunatConfig = RunatSSHConfig | RunatDockerConfig | RunatWSLConfig | RunatLocalConfig;
 
 export const Runat: Directive = class {
     static loadSSHConfig(): Map<string, SSHHostConfig> {
-        const customSSHPath = getConfig().get<string>('sshPath')!.replace(/[/\\]+$/,'');
+        const customSSHPath = getConfig()
+            .get<string>('sshPath')!
+            .replace(/[/\\]+$/, '');
         const sshConfigFile = customSSHPath === '' ? os.homedir() + '/.ssh/config' : customSSHPath + '/config';
         const sshConfigMap = new Map();
         const config = SSHConfig.parse(fs.readFileSync(sshConfigFile).toString());
@@ -58,7 +69,9 @@ export const Runat: Directive = class {
     static makeSSH(input: string): SSHExportConfig {
         const sshConfigMap = this.loadSSHConfig();
         const exportConfig: SSHExportConfig = {};
-        const customSSHPath = getConfig().get<string>('sshPath')!.replace(/[/\\]+$/,'');
+        const customSSHPath = getConfig()
+            .get<string>('sshPath')!
+            .replace(/[/\\]+$/, '');
         let privateKeyPath = customSSHPath === '' ? os.homedir + '/.ssh/id_rsa' : customSSHPath + '/id_rsa';
         if (!fs.existsSync(privateKeyPath)) {
             privateKeyPath = '';
@@ -106,25 +119,60 @@ export const Runat: Directive = class {
         };
     }
 
+    static makeWSL(input?: string): WSLConfig {
+        let res = '';
+        try {
+            res = ChildProcess.execSync('wsl -l -q').toString('utf16le').trim();
+        } catch (e) {
+            throw new Error('install wsl first');
+        }
+        if (res === '') {
+            throw new Error('register at least one WSL distribution');
+        }
+        const distributions = res.split('\n');
+        if (distributions.length === 1 && input === undefined) {
+            return { distribution: distributions[0] };
+        }
+        if (input) {
+            for (const i of distributions) {
+                if (i === input.trim()) {
+                    return { distribution: i };
+                }
+            }
+            throw new Error(`WSL distribution ${input} not found`);
+        } else {
+            throw new Error('WSL distribution must be specified');
+        }
+    }
+
     static parse(line: string): RunatConfig {
         // runat ssh url
         // runat ssh server
         // runat docker container-id [user]
         // runat docker container-name [user]
+        // runat wsl [distribution]
         const s = line.split(/ +/);
-        if (s.length < 3) {
-            throw new Error('runat need 3 arguments');
-        }
         switch (s[1]) {
             case 'ssh':
+                if (s.length < 3) {
+                    throw new Error('ssh need one argument');
+                }
                 return {
                     type: 'ssh',
                     sshConfig: this.makeSSH(s[2])
                 };
             case 'docker':
+                if (s.length < 3) {
+                    throw new Error('docker need one argument at least');
+                }
                 return {
                     type: 'docker',
                     dockerConfig: this.makeDocker(s[2], s[3])
+                };
+            case 'wsl':
+                return {
+                    type: 'wsl',
+                    wslConfig: this.makeWSL(s[2])
                 };
             case 'local':
                 return {
