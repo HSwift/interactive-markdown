@@ -93,7 +93,7 @@ export const Runat: Directive = class {
             if (url.protocol !== 'ssh:') {
                 throw new Error('connection url must use the ssh protocol');
             }
-            exportConfig.host = url.host;
+            exportConfig.host = url.hostname;
             exportConfig.port = url.port === '' ? 22 : parseInt(url.port);
             exportConfig.username = url.username === '' ? 'root' : url.username;
             exportConfig.password = url.password;
