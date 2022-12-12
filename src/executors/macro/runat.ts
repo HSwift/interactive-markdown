@@ -109,7 +109,7 @@ export const Runat: Directive = class {
         if (user && !user.match(/^[a-z0-9_-]{1,30}$/)) {
             throw new Error('invalid username');
         }
-        const runningState = ChildProcess.execSync(`docker inspect -f '{{.State.Running}}' '${container}'`).toString();
+        const runningState = ChildProcess.execSync(`docker inspect -f "{{.State.Running}}" "${container}"`).toString();
         if (!runningState.includes('true')) {
             throw new Error('invalid container or container not running');
         }
