@@ -1,8 +1,4 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-import { randomBytes } from 'crypto';
-import * as os from 'os';
-import * as path from 'path';
-import * as fs from 'fs/promises';
 import * as vscode from 'vscode';
 import { languages, LanguageSupport } from './languageSupport';
 import { getExecutorsConfig } from '../utils';
@@ -19,28 +15,11 @@ export class RunnerOptions {
     public contextValue: Map<number, vscode.NotebookCellOutputItem> = new Map();
 }
 
-async function genFilename() {
-    for (let i = 0; i < 25; i++) {
-        const t = path.join(os.tmpdir(), 'code-runner-' + randomBytes(6).toString('hex'));
-        try {
-            await fs.access(t);
-        } catch (e: any) {
-            if (e.code === 'ENOENT') {
-                return t;
-            } else {
-                throw e;
-            }
-        }
-    }
-    throw new Error('can not generate temp filename');
-}
-
 export class CodeExecutor {
     private _stdout?: vscode.NotebookCellOutput;
     private _stderr?: vscode.NotebookCellOutput;
     private _languageSupport: LanguageSupport;
     private _macroProvidedConfig: MacroConfig;
-    private _filename?: string;
     private readonly _cellExecutions: vscode.NotebookCellExecution;
     public readonly options: RunnerOptions;
 
@@ -109,19 +88,18 @@ export class CodeExecutor {
     }
 
     chooseExecutorProxy(): ExecutorProxy {
-        const filename = this._filename!;
         if (this._macroProvidedConfig.runat) {
             const runat = this._macroProvidedConfig.runat;
             switch (runat.type) {
                 case 'ssh':
-                    return new SSHExecutorProxy(filename, runat.sshConfig);
+                    return new SSHExecutorProxy(runat.sshConfig);
                 case 'docker':
-                    return new DockerExecutorProxy(filename, runat.dockerConfig);
+                    return new DockerExecutorProxy(runat.dockerConfig);
                 default:
-                    return new LocalExecutorProxy(filename);
+                    return new LocalExecutorProxy();
             }
         } else {
-            return new LocalExecutorProxy(filename);
+            return new LocalExecutorProxy();
         }
     }
 
@@ -151,8 +129,6 @@ export class CodeExecutor {
             }
         };
 
-        this._filename = await genFilename();
-        this.options.command = this.options.command.replace('%p', this._filename);
         const spawnOptions = {
             cwd: this.options.cwd,
             env: this.options.env,
